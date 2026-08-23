@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""prove-nonzero — the one non-zero-dollar experiment, ready to fire on funding.
+
+Runs the full economic chain against a REAL paid provider call and proves the
+system never fabricates certainty:
+  AUTHORIZED -> EXECUTED -> EXTERNAL_COST_UNKNOWN -> EXTERNAL_COST_CONFIRMED -> RECONCILED
+plus a deliberately dropped-response case that must resolve to UNKNOWN, not $0.
+
+SPEND GATE: makes NO paid call unless --confirm-spend is passed. Dry-run by
+default. Picks a cheap paid model; one call costs a fraction of a cent.
+"""
+import json, os, sys, time, urllib.request, urllib.error
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "src"))
+from paymaster.reconcile_external import reconcile, UNKNOWN_PROVIDER, MATCH, MISMATCH
+from paymaster import gate
+from paymaster.ledger import Ledger
+from paymaster.schema import record, make_id
+
+MODEL = os.environ.get("PROVE_MODEL", "openai/gpt-4o-mini")  # panel pick: reliable cost endpoint
+
+def _key():
+    if os.environ.get("OPENROUTER_API_KEY"):
+        return os.environ["OPENROUTER_API_KEY"]
+    for ln in open(os.path.expanduser(os.environ.get("PAYMASTER_ENV", "~/.config/ai-bridge/env"))):
+        if ln.startswith("OPENROUTER_API_KEY="):
+            return ln.split("=", 1)[1].strip().strip('"').strip("'")
+    raise SystemExit("no OPENROUTER_API_KEY")
+
+def _get(url, key):
+    rq = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+    return json.load(urllib.request.urlopen(rq, timeout=20))
+
+def _model_pricing(key, model):
+    """Published per-token price for the model — the basis for an INDEPENDENT
+    local cost estimate (not the provider's own number)."""
+    d = _get("https://openrouter.ai/api/v1/models", key)["data"]
+    for m in d:
+        if m.get("id") == model:
+            p = m.get("pricing", {})
+            return float(p.get("prompt", 0)), float(p.get("completion", 0))
+    raise SystemExit(f"model {model} not found in /models")
+
+
+def main():
+    confirm = "--confirm-spend" in sys.argv
+    key = _key()
+    price_in, price_out = _model_pricing(key, MODEL)
+    credits = _get("https://openrouter.ai/api/v1/credits", key)["data"]
+    remaining = credits["total_credits"] - credits["total_usage"]
+    print(f"account: credits={credits['total_credits']} usage={credits['total_usage']} "
+          f"remaining≈${remaining:.4f}")
+    print(f"model: {MODEL}")
+    if not confirm:
+        print("\nDRY RUN. No paid call made. Plan:")
+        print("  1. AUTHORIZED  — shadow gate decision (logged, non-blocking)")
+        print("  2. EXECUTED    — one real paid call to the model above")
+        print("  3. EXTERNAL_COST_UNKNOWN  — poll /generation?id= until cost populates")
+        print("  4. EXTERNAL_COST_CONFIRMED — provider's own cost record")
+        print("  5. RECONCILED  — local vs provider -> MATCH/MISMATCH")
+        print("  6. dropped-response case -> must be UNKNOWN, not $0")
+        print("\nRe-run with --confirm-spend to execute (costs a fraction of a cent).")
+        return 0
+    if remaining <= 0:
+        raise SystemExit("no credit — fund OpenRouter first (operator action).")
+
+    print("\n[1] AUTHORIZED"); d = gate.evaluate("prove-nonzero", "openrouter", calls=1)
+    print(f"    gate: {d['decision']} ({d['reason_code']})  policy={d.get('policy_hash')}")
+
+    print("[2] EXECUTED — real paid call")
+    body = json.dumps({"model": MODEL,
+                       "messages": [{"role": "user", "content": os.environ.get("PROVE_PROMPT","reply with one word: settled")}],
+                       "max_tokens": int(os.environ.get("PROVE_MAXTOK","20"))}).encode()
+    rq = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=body,
+                                headers={"Authorization": f"Bearer {key}", "content-type": "application/json"})
+    resp = json.load(urllib.request.urlopen(rq, timeout=60))
+    gid = resp.get("id")
+    usage = resp.get("usage", {}) or {}
+    ptok = usage.get("prompt_tokens", 0); ctok = usage.get("completion_tokens", 0)
+    local_est = ptok * price_in + ctok * price_out   # INDEPENDENT local cost
+    print(f"    generation id: {gid}")
+    print(f"    tokens: prompt={ptok} completion={ctok} -> LOCAL estimate ${local_est:.8f} "
+          f"(from published price, NOT the provider's number)")
+
+    print("[3] EXTERNAL_COST_UNKNOWN — polling provider for its own cost record")
+    provider_cost = None
+    for wait in (2, 4, 8, 15, 30, 30):   # ~85s total; provider lag can exceed 20s
+        time.sleep(wait)
+        try:
+            g = _get(f"https://openrouter.ai/api/v1/generation?id={gid}", key).get("data") or {}
+        except urllib.error.HTTPError:
+            g = {}
+        if g.get("total_cost") is not None:
+            provider_cost = float(g["total_cost"])
+            print(f"    +{wait}s: provider confirms total_cost=${provider_cost:.8f}")
+            break
+        print(f"    +{wait}s: provider silent -> verdict {reconcile(None, None, authorized=True, response_received=True)['verdict']}")
+
+    if provider_cost is None:
+        print("    provider never reported cost within poll window -> HARD FAIL (not a silent pass)")
+        print("\nRESULT: INCOMPLETE — real charge unconfirmed; treat as spend-of-unknown-amount, investigate")
+        return 1
+    if provider_cost <= 0:
+        print(f"    provider reported ${provider_cost} -> NOT a non-zero settlement (free/error)")
+        print("\nRESULT: INCOMPLETE — call did not produce a real charge; pick a paid model")
+        return 1
+    print("[4/5] RECONCILED — INDEPENDENT local estimate vs provider's actual charge")
+    # tolerance: token-price rounding. within 20% or 1e-7 absolute = MATCH.
+    tol = max(1e-7, 0.20 * provider_cost)
+    r = reconcile(local_cost=local_est, provider_cost=provider_cost,
+                  settled_cost=provider_cost, authorized=True, response_received=True, tol=tol)
+    print(f"    local_est ${local_est:.8f}  vs provider ${provider_cost:.8f}  "
+          f"-> {r['verdict']}  spent_known={r['spent_known']}")
+
+    print("[6] dropped-response case (same call, response lost)")
+    r2 = reconcile(None, None, authorized=True, response_received=False)
+    print(f"    -> {r2['verdict']}  spent_known={r2['spent_known']}  ({r2['note'][:60]}…)")
+
+    if r["verdict"] == MATCH:
+        led = Ledger(os.path.expanduser("~/.local/state/paymaster/spend.jsonl"))
+        rec = record(ts=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(timespec="seconds"),
+                     rail="api-billing", provider="openrouter", principal="prove-nonzero",
+                     state="RECONCILED", attribution="asserted", model=MODEL,
+                     tokens_in=ptok, tokens_out=ctok, usd=provider_cost, currency="USD",
+                     evidence=f"gen={gid};reconciled=MATCH;local_est={local_est}",
+                     rid=make_id("prove-nonzero", gid))
+        if rec["id"] not in led.known_ids():
+            led.append(rec)
+            print(f"[7] RECORDED — proven txn persisted to ledger seq (state=RECONCILED, ${provider_cost:.8f})")
+    ok = (provider_cost > 0 and r["verdict"] == MATCH
+          and r2["verdict"] == UNKNOWN_PROVIDER and r2["spent_known"] is False)
+    print(f"\nRESULT: {'CHAIN PROVEN with real money — no point fabricated certainty' if ok else 'INCOMPLETE — inspect above'}")
+    return 0 if ok else 1
+
+if __name__ == "__main__":
+    sys.exit(main())

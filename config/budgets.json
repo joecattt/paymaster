@@ -1,0 +1,56 @@
+{
+  "_doc": "The purchase orders. scope keys must equal SpendRecord fields exactly. Limits: limit_tokens / limit_usd / limit_calls, evaluated over the CURRENT window only.",
+  "budgets": [
+    {
+      "id": "po-indexer-agent",
+      "scope": {
+        "principal": "indexer-agent"
+      },
+      "window": "day",
+      "limit_calls": 3000,
+      "limit_tokens": 2000000
+    },
+    {
+      "id": "po-panels",
+      "scope": {
+        "principal": "unattributed"
+      },
+      "window": "day",
+      "limit_calls": 300,
+      "limit_tokens": 3000000
+    },
+    {
+      "id": "po-x402-live",
+      "scope": {
+        "rail": "x402"
+      },
+      "window": "month",
+      "limit_usd": 5.0
+    },
+    {
+      "id": "po-crawler-agent",
+      "scope": {
+        "principal": "crawler-agent"
+      },
+      "window": "day",
+      "limit_calls": 200
+    },
+    {
+      "id": "po-notify",
+      "scope": {
+        "principal": "notifier-agent"
+      },
+      "window": "day",
+      "limit_calls": 100
+    },
+    {
+      "id": "po-test-agent",
+      "scope": {
+        "principal": "test-agent"
+      },
+      "window": "day",
+      "limit_calls": 100
+    }
+  ],
+  "timezone": "America/Chicago"
+}

@@ -1,0 +1,13 @@
+{
+  "_doc": "usd per million tokens. Every row MUST carry asOf+source. A provider missing here prices to None (unknown) — the engine never guesses. Free tier = 0 IS the honest number while it holds.",
+  "providers": {
+    "groq":       {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "free tier, delegate seat"},
+    "mistral":    {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "free tier, delegate seat"},
+    "gemini":     {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "free tier, delegate seat"},
+    "cerebras":   {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "free tier (402'd = hard $0)"},
+    "sambanova":  {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "free tier (402'd = hard $0)"},
+    "openrouter": {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "stealth/ox-alpha free window thru ~8/27 — REPRICE AT REVERT"},
+    "ollama":     {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "local inference"},
+    "k3":         {"usd_per_mtok_in": 0, "usd_per_mtok_out": 0, "asOf": "2026-08-22", "source": "flat-rate plan; marginal cost 0"}
+  }
+}

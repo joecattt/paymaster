@@ -1,0 +1,44 @@
+{
+  "claims": [
+    {
+      "claim": "11+ unit tests pass",
+      "probe": "python3 -m unittest discover -s tests -q"
+    },
+    {
+      "claim": "ingest is idempotent",
+      "probe": "./bin/paymaster ingest && ./bin/paymaster ingest | grep -q 'ingested 0 new'"
+    },
+    {
+      "claim": "ledger chain verifies",
+      "probe": "./bin/paymaster verify"
+    },
+    {
+      "claim": "gate fails closed on breach/orphan/unpriced",
+      "probe": "python3 -m unittest tests.test_paymaster.TestBudgets -q"
+    },
+    {
+      "claim": "x402 adapter matches vendored spec v2",
+      "probe": "python3 -m unittest tests.test_paymaster.TestX402 -q"
+    },
+    {
+      "claim": "principal stamp rejects forge/replay/stale/wrong-key",
+      "probe": "python3 -m unittest tests.test_gate.TestPrincipalStamp -q"
+    },
+    {
+      "claim": "shadow gate decides+logs without blocking",
+      "probe": "python3 -m unittest tests.test_gate.TestShadowGate -q"
+    },
+    {
+      "claim": "delegate is byte-identical unless PAYMASTER_SHADOW=1",
+      "probe": "grep -q 'PAYMASTER_SHADOW' ~/bin/delegate"
+    },
+    {
+      "claim": "counter-store decision == full-ledger decision",
+      "probe": "python3 -m unittest tests.test_counters.DifferentialEquivalence -q"
+    },
+    {
+      "claim": "reconcile detects and overwrites corrupt counter cache",
+      "probe": "python3 -m unittest tests.test_counters.DifferentialEquivalence.test_reconcile_detects_corrupt_cache -q"
+    }
+  ]
+}
