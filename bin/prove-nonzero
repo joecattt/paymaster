@@ -20,10 +20,15 @@ from paymaster.schema import record, make_id
 MODEL = os.environ.get("PROVE_MODEL", "openai/gpt-4o-mini")  # panel pick: reliable cost endpoint
 
 def _key():
-    for ln in open(os.path.expanduser("~/.config/ai-bridge/env")):
-        if ln.startswith("OPENROUTER_API_KEY="):
-            return ln.split("=", 1)[1].strip().strip('"').strip("'")
-    raise SystemExit("no OPENROUTER_API_KEY")
+    if os.environ.get("OPENROUTER_API_KEY"):
+        return os.environ["OPENROUTER_API_KEY"]
+    envp = os.path.expanduser(os.environ.get("PAYMASTER_ENV", "~/.config/ai-bridge/env"))
+    if os.path.exists(envp):
+        for ln in open(envp):
+            if ln.startswith("OPENROUTER_API_KEY="):
+                return ln.split("=", 1)[1].strip().strip('"').strip("'")
+    raise SystemExit("prove-nonzero: no OPENROUTER_API_KEY (set the env var or PAYMASTER_ENV). "
+                     "This command talks to a real provider; the test suite never requires it.")
 
 def _get(url, key):
     rq = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
