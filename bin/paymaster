@@ -235,9 +235,6 @@ def main():
         from paymaster import receipt as _R
         target = args[1]
         found = seq = None
-        if not os.path.exists(LEDGER):
-            print("no ledger yet — run `paymaster ingest` (or `paymaster x402 ...`) first", file=sys.stderr)
-            return 1
         with open(LEDGER) as f:
             for line in f:
                 if not line.strip():

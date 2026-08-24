@@ -56,6 +56,8 @@ def _nearest_decision(decisions, principal, provider, ts, tolerance_s=900):
             continue
         if dt <= best_dt:
             best, best_dt = d, dt
+    if best is not None:
+        best = dict(best, _link_delta_s=round(best_dt.total_seconds(), 1))
     return best
 
 
@@ -92,11 +94,16 @@ def build(rec: dict, *, seq=None, decisions=(), consideration=None,
     # authority: temporal linkage to the decision log, honestly graded DERIVED
     d = _nearest_decision(decisions, rec["principal"], rec["provider"], rec["ts"])
     if d:
+        src = f"decision-log(temporal-link +/-{d.get('_link_delta_s','?')}s)"
         body["authority"] = {
-            "decision": _f(d["decision"], "decision-log(temporal-link)", "derived"),
-            "reason_code": _f(d["reason_code"], "decision-log(temporal-link)", "derived"),
-            "policy_hash": _f(d["policy_hash"], "decision-log(temporal-link)", "derived"),
+            "decision": _f(d["decision"], src, "derived"),
+            "reason_code": _f(d["reason_code"], src, "derived"),
+            "policy_hash": _f(d["policy_hash"], src, "derived"),
+            "link_delta_s": _f(d.get("_link_delta_s"), "receipt", "derived"),
         }
+        if d.get("_link_delta_s", 0) and d["_link_delta_s"] > 60:
+            gaps.append(f"decision link is loose ({d['_link_delta_s']}s gap) — "
+                        "temporal only, may mislink if actions cluster")
     else:
         gaps.append("no gate decision linked — action predates the gate, ran "
                     "off-route, or no temporal match within tolerance")
@@ -120,8 +127,11 @@ def build(rec: dict, *, seq=None, decisions=(), consideration=None,
         body["economics"]["reconcile"] = _f(ev["reconciled"],
             "reconcile_external(provider cost API)", "reconciled")
         if ev.get("local_est"):
-            body["economics"]["local_estimate"] = _f(float(ev["local_est"]),
-                "published-price x usage", "derived")
+            try:
+                body["economics"]["local_estimate"] = _f(float(ev["local_est"]),
+                    "published-price x usage", "derived")
+            except ValueError:
+                pass
     else:
         gaps.append("no external reconciliation — provider's own cost record "
                     "not consulted for this action; amount is unverified")
@@ -149,7 +159,8 @@ def render(r: dict) -> str:
     """Human answer to 'what the hell did the autonomous system just do?'"""
     L = []
     g = lambda s, k: (r.get(s, {}).get(k) or {}).get("value")
-    L.append(f"WHO        {g('who','principal')}  [{ (r['who']['principal'])['grade'] }]")
+    gg = lambda s, k: (r.get(s, {}).get(k) or {}).get("grade", "?")
+    L.append(f"WHO        {g('who','principal')}  [{gg('who','principal')}]")
     L.append(f"WHAT       {g('what','state')} via {g('what','provider')}"
              f"{('/' + g('what','model')) if g('what','model') else ''} at {g('what','ts')}")
     if r.get("authority"):

@@ -56,3 +56,28 @@ class DecisionReceipt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
+
+class ReviewFixes(unittest.TestCase):
+    def test_loose_link_becomes_a_visible_gap(self):
+        far = [{"principal_id":"prove-nonzero","provider":"openrouter","decision":"ALLOW",
+                "reason_code":"WITHIN_BUDGET","policy_hash":"h","ts":"2026-08-23T09:33:00+00:00"}]
+        r = R.build(REC, seq=1, decisions=far)   # ~302s from REC ts -> loose
+        self.assertIn("link_delta_s", r["authority"])
+        self.assertTrue(any("loose" in g for g in r["gaps"]))
+
+    def test_empty_local_est_does_not_crash(self):
+        rec = record(ts="2026-08-23T09:38:02+00:00", rail="api-billing", provider="openrouter",
+                     principal="p", state="RECONCILED", attribution="asserted",
+                     usd=0.001, evidence="gen=g1;reconciled=MATCH;local_est=", rid="z"*64)
+        r = R.build(rec)                          # must not raise
+        self.assertNotIn("local_estimate", r["economics"])
+
+class PrincipalHardening(unittest.TestCase):
+    def test_dotdot_rejected(self):
+        import os, tempfile
+        from paymaster import principal as P
+        with self.assertRaises(ValueError):
+            P._keypath("..")
+        with self.assertRaises(ValueError):
+            P._keypath("a..b/../c")

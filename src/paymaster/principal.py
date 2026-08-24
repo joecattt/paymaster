@@ -12,6 +12,7 @@ exactly as the raw provider keys already are. This raises impersonation from
 "write any string" to "steal a specific 0600 file", nothing more.
 """
 from __future__ import annotations
+import fcntl
 import hashlib
 import hmac
 import json
@@ -25,7 +26,7 @@ SKEW_TOLERANCE_S = 300  # a stamp older/newer than this is rejected (replay + cl
 
 def _keypath(pid: str) -> str:
     safe = "".join(c for c in pid if c.isalnum() or c in "-_.")
-    if safe != pid or not safe:
+    if safe != pid or not safe or ".." in pid:
         raise ValueError(f"unsafe principal id: {pid!r}")
     return os.path.join(KEYDIR, f"{safe}.key")
 
@@ -116,12 +117,19 @@ def _nonce_seen(key: str, now: float) -> bool:
 
 
 def _remember_nonce(key: str, now: float) -> None:
+    """Compact + append under an exclusive lock so a concurrent verifier cannot
+    lose a just-recorded nonce in the rewrite (matches the ledger's discipline)."""
     os.makedirs(os.path.dirname(NONCE_DB), exist_ok=True)
-    # compact: rewrite only live nonces + this one (bounded by freshness window)
-    live = _load_nonces(now)
-    live[key] = now
-    tmp = NONCE_DB + ".tmp"
-    with open(tmp, "w") as f:
-        for k, t in live.items():
-            f.write(json.dumps({"k": k, "t": t}) + "\n")
-    os.replace(tmp, NONCE_DB)
+    with open(NONCE_DB + ".lock", "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            live = _load_nonces(now)   # re-read INSIDE the lock
+            live[key] = now
+            tmp = NONCE_DB + f".{os.getpid()}.tmp"
+            with open(tmp, "w") as f:
+                for k, t in live.items():
+                    f.write(json.dumps({"k": k, "t": t}) + "\n")
+                f.flush(); os.fsync(f.fileno())
+            os.replace(tmp, NONCE_DB)
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
