@@ -1,4 +1,9 @@
-# paymaster — reference implementation for verifiable agent-spend receipts
+# paymaster — independent control and evidence for autonomous software
+
+**The chain of custody for autonomous action:** who acted, under whose
+authority, what policy decided, what it cost, what the provider's own records
+confirm, and what remains unproven. Reference implementation for verifiable
+agent-spend receipts
 
 **This is a reference implementation, not a complete financial control system.**
 
@@ -24,6 +29,24 @@ The intellectual core — each one a mistake this implementation almost made and
 caught by experiment: would-DENY ≠ prevented loss · integrity ≠ completeness ·
 declaration ≠ legitimacy · fail-closed ≠ safety · local record ≠ external truth ·
 known-set reconciliation ≠ coverage · model consensus ≠ market evidence.
+
+## The centerpiece command
+
+```
+$ paymaster explain 22706
+WHO        prove-nonzero  [asserted]
+WHAT       RECONCILED via openrouter/openai/gpt-4o-mini
+AUTHORITY  DENY (ORPHAN_NO_BUDGET) policy=85010f7c...  [derived: temporal link]
+COST       $0.00000315  [reconciled, source=provider-record]
+RECONCILE  MATCH vs provider record gen-1787476662...
+GRADE      derived (weakest populated field)
+GAPS       no consideration chain — direct API call
+```
+
+A real receipt for a real charge — note it reports the gate would have DENIED
+an action that executed anyway (shadow mode), and grades the whole receipt by
+its weakest link. An auditable answer to "what did the autonomous system just
+do?", including the parts that are awkward.
 
 ## What it is NOT
 - It does not move money, hold keys, or execute payments.

@@ -9,6 +9,7 @@
   paymaster anchor            witness the chain tail into the git-tracked anchors file
   paymaster verify            verify the hash chain + anchors; exit 2 if broken
   paymaster enroll <id>       create a principal's HMAC key (0600) for authenticated stamps
+  paymaster explain <id|seq>  Decision Receipt: who/what/authority/cost/reconcile/gaps [--json]
   paymaster reconcile-counters  rebuild counters from ledger, compare to cache; exit 2 on drift
   paymaster coverage [provider]  Σ(known) vs provider aggregate; exit 2 if unaccounted spend exists
   paymaster fire-drill        replay 2026 viral runaways vs your policy (SHADOW; would-have-denied card)
@@ -224,6 +225,55 @@ def main():
               f"{'$%.6f' % agg if agg is not None else 'N/A'} -> {res['verdict']} (gap={res['gap']})")
         print(f"  {res['note']}")
         return 0 if res["verdict"] in (_C.COVERED, _C.NO_AGGREGATE) else 2
+
+    if cmd == "explain":
+        # The product, in one command: an auditable answer to "what did the
+        # autonomous system just do?" Assembled ONLY from existing telemetry.
+        if len(args) < 2:
+            print("usage: paymaster explain <record-id-prefix|ledger-seq>", file=sys.stderr)
+            return 1
+        from paymaster import receipt as _R
+        target = args[1]
+        found = seq = None
+        with open(LEDGER) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if str(row["seq"]) == target or row["rec"]["id"].startswith(target):
+                    found, seq = row["rec"], row["seq"]
+        if not found:
+            print(f"no ledger record matching {target!r}", file=sys.stderr)
+            return 1
+        decisions = []
+        dpath = os.path.join(STATE, "decisions.jsonl")
+        if os.path.exists(dpath):
+            with open(dpath) as f:
+                decisions = [json.loads(l) for l in f if l.strip()]
+        # consideration chain from routing telemetry (same principal, +/-120s)
+        consideration = None
+        try:
+            import sqlite3
+            from datetime import datetime, timedelta
+            t0 = datetime.fromisoformat(found["ts"])
+            con = sqlite3.connect("file:" + os.path.expanduser(
+                "~/.local/state/ai-route/routing.db") + "?mode=ro", uri=True)
+            rows = con.execute(
+                "SELECT provider, ok, fallback_rank FROM events WHERE caller=? "
+                "AND ts BETWEEN ? AND ? ORDER BY ts",
+                (found["principal"], (t0 - timedelta(seconds=120)).isoformat(),
+                 (t0 + timedelta(seconds=120)).isoformat())).fetchall()
+            con.close()
+            if rows:
+                consideration = [{"provider": p, "ok": bool(o), "rank": r} for p, o, r in rows]
+        except Exception:
+            pass
+        r = _R.build(found, seq=seq, decisions=decisions, consideration=consideration)
+        if "--json" in args:
+            print(json.dumps(r, indent=1))
+        else:
+            print(_R.render(r))
+        return 0
 
     if cmd == "reconcile-counters":
         from paymaster import counters as _C
