@@ -62,7 +62,7 @@ def _nearest_decision(decisions, principal, provider, ts, tolerance_s=900):
 
 
 def build(rec: dict, *, seq=None, decisions=(), consideration=None,
-          coverage=None) -> dict:
+          coverage=None, capability=None) -> dict:
     """Assemble a Decision Receipt from a ledger record + optional linked
     evidence. Every input is existing telemetry — nothing is instrumented."""
     ev = _parse_evidence(rec.get("evidence", ""))
@@ -107,6 +107,20 @@ def build(rec: dict, *, seq=None, decisions=(), consideration=None,
     else:
         gaps.append("no gate decision linked — action predates the gate, ran "
                     "off-route, or no temporal match within tolerance")
+
+    # capability chain: a VERIFIED chain is the strongest authority evidence
+    # available today (grade: authenticated — software HMAC, not hardware).
+    if capability is not None:
+        if capability.get("valid"):
+            body["authority"]["capability"] = _f(capability.get("effective"),
+                "capability-chain(verified)", capability.get("grade", "authenticated"))
+        else:
+            gaps.append(f"capability chain INVALID: {capability.get('reason')}")
+    else:
+        gaps.append("no capability chain — authority is policy-inferred, not presented")
+    # attestation slot: reserved for hardware/TEE evidence. Always a gap today;
+    # filling it is the market's job (EAT/TEE/NIST agent identity), not simulation.
+    gaps.append("no execution attestation — runtime identity unproven (top ladder rungs empty)")
 
     # alternatives: consideration chain if the caller derived one from routing telemetry
     if consideration:

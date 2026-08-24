@@ -36,6 +36,8 @@ establishes this fact — because the fields are NOT equally trustworthy:
 | `ledger_seq`, `chain_hash` | tamper-evidence of the operator's record | operator |
 | `anchor` | continuity witness — see anchor taxonomy below | varies (§3a) |
 | `receipt_version`, `schema_version` | interpretation stability over time | spec |
+| `authority.capability` | a VERIFIED delegation chain the actor presented | issuer keys — grade `authenticated`, never higher |
+| *(attestation slot)* | reserved: hardware/TEE runtime-identity proof | **empty today — always listed as a gap, never simulated** |
 
 ### 3a. Anchor taxonomy (do not conflate)
 
@@ -94,6 +96,18 @@ A conforming implementation **MUST NOT**:
 9. resolve a missing external record to zero cost
 10. permit an actor to increase its own authority, extend its own expiration,
     or release its own quarantine
+
+## 6b. Capability invariants (normative for the delegation chain)
+
+- I-CAP1 authority can shrink automatically; it can never grow implicitly —
+  a child capability is min()'d/narrowed against its parent on every dimension
+- I-CAP2 a subject cannot extend its own expiry, raise its own bounds, or mint
+  itself authority it does not hold (self-delegation only narrows)
+- I-CAP3 revocation cascades: revoking a capability invalidates everything
+  delegated under it
+- I-CAP4 delegation requires parental permission and has bounded depth
+- I-CAP5 chain verification grades at most `authenticated` (local HMAC keys) —
+  runtime identity remains unproven until hardware/TEE attestation fills the slot
 
 ## 7. Known limits (also normative to disclose)
 

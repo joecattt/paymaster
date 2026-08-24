@@ -10,6 +10,9 @@
   paymaster verify            verify the hash chain + anchors; exit 2 if broken
   paymaster enroll <id>       create a principal's HMAC key (0600) for authenticated stamps
   paymaster explain <id|seq>  Decision Receipt: who/what/authority/cost/reconcile/gaps [--json]
+  paymaster grant <iss> <sub>  issue a bounded, expiring capability (--usd --calls --hours --delegable)
+  paymaster check-cap <file>  verify a delegation chain; exit 2 if invalid (monotonic, revocation-aware)
+  paymaster revoke-cap <id>   revoke a capability (invalidates all delegations under it)
   paymaster reconcile-counters  rebuild counters from ledger, compare to cache; exit 2 on drift
   paymaster coverage [provider]  Σ(known) vs provider aggregate; exit 2 if unaccounted spend exists
   paymaster fire-drill        replay 2026 viral runaways vs your policy (SHADOW; would-have-denied card)
@@ -225,6 +228,40 @@ def main():
               f"{'$%.6f' % agg if agg is not None else 'N/A'} -> {res['verdict']} (gap={res['gap']})")
         print(f"  {res['note']}")
         return 0 if res["verdict"] in (_C.COVERED, _C.NO_AGGREGATE) else 2
+
+    if cmd == "grant":
+        # paymaster grant <issuer> <subject> --provider X --usd N --calls N --hours H [--delegable]
+        from paymaster import capability as _cap
+        from datetime import datetime, timedelta, timezone
+        a = args[1:]
+        if len(a) < 2:
+            print("usage: paymaster grant <issuer> <subject> [--provider P] [--usd N] [--calls N] [--hours H] [--delegable]", file=sys.stderr)
+            return 1
+        def _opt(flag, cast=str, default=None):
+            return cast(a[a.index(flag)+1]) if flag in a else default
+        scope = {}
+        if _opt("--provider"): scope["provider"] = _opt("--provider")
+        exp = (datetime.now(timezone.utc) + timedelta(hours=_opt("--hours", float, 1.0))).isoformat(timespec="seconds")
+        cap = _cap.issue(a[0], a[1], scope=scope, expires=exp,
+                         max_usd=_opt("--usd", float), max_calls=_opt("--calls", int),
+                         allow_delegate="--delegable" in a)
+        print(json.dumps(cap, indent=1))
+        return 0
+
+    if cmd == "check-cap":
+        # paymaster check-cap <chain.json>   (file: JSON list of capability tokens)
+        from paymaster import capability as _cap
+        with open(args[1]) as f:
+            chain = json.load(f)
+        v = _cap.verify_chain(chain if isinstance(chain, list) else [chain])
+        print(json.dumps(v, indent=1))
+        return 0 if v["valid"] else 2
+
+    if cmd == "revoke-cap":
+        from paymaster import capability as _cap
+        _cap.revoke(args[1], " ".join(args[2:]) or "operator revocation")
+        print(f"revoked {args[1]} (cascades to all delegations under it)")
+        return 0
 
     if cmd == "explain":
         # The product, in one command: an auditable answer to "what did the
