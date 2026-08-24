@@ -1,0 +1,104 @@
+{
+ "receipt_version": "1.0",
+ "who": {
+  "principal": {
+   "value": "prove-nonzero",
+   "source": "ledger",
+   "grade": "asserted"
+  },
+  "principal_id": {
+   "value": "prove-nonzero",
+   "source": "ledger",
+   "grade": "asserted"
+  }
+ },
+ "what": {
+  "provider": {
+   "value": "openrouter",
+   "source": "ledger",
+   "grade": "asserted"
+  },
+  "model": {
+   "value": "openai/gpt-4o-mini",
+   "source": "ledger",
+   "grade": "asserted"
+  },
+  "state": {
+   "value": "RECONCILED",
+   "source": "ledger",
+   "grade": "asserted"
+  },
+  "tokens_in": {
+   "value": 13,
+   "source": "provider-usage-field",
+   "grade": "asserted"
+  },
+  "tokens_out": {
+   "value": 2,
+   "source": "provider-usage-field",
+   "grade": "asserted"
+  },
+  "ts": {
+   "value": "2026-08-23T09:20:51+00:00",
+   "source": "ledger",
+   "grade": "asserted"
+  }
+ },
+ "authority": {
+  "decision": {
+   "value": "DENY",
+   "source": "decision-log(temporal-link)",
+   "grade": "derived"
+  },
+  "reason_code": {
+   "value": "ORPHAN_NO_BUDGET",
+   "source": "decision-log(temporal-link)",
+   "grade": "derived"
+  },
+  "policy_hash": {
+   "value": "85010f7c926045cb",
+   "source": "decision-log(temporal-link)",
+   "grade": "derived"
+  }
+ },
+ "alternatives": {},
+ "economics": {
+  "amount_usd": {
+   "value": 3.15e-06,
+   "source": "provider-record",
+   "grade": "reconciled"
+  },
+  "provider_txn": {
+   "value": "gen-1787476662-56h9X8BApGk05VDAkxnO",
+   "source": "provider",
+   "grade": "provider"
+  },
+  "reconcile": {
+   "value": "MATCH",
+   "source": "reconcile_external(provider cost API)",
+   "grade": "reconciled"
+  },
+  "local_estimate": {
+   "value": 3.15e-06,
+   "source": "published-price x usage",
+   "grade": "derived"
+  }
+ },
+ "integrity": {
+  "record_id": {
+   "value": "e8c8bf41f43ca093d1f1e8ec34a522ef72e75d903ffb85e53e2ccc8b8271b0d5",
+   "source": "ledger",
+   "grade": "asserted"
+  },
+  "ledger_seq": {
+   "value": 22706,
+   "source": "ledger",
+   "grade": "asserted"
+  }
+ },
+ "gaps": [
+  "no consideration chain \u2014 call did not pass through routed fallback telemetry (direct API or single-provider)"
+ ],
+ "evidence_grade": "derived",
+ "receipt_id": "0c50d97f4807d609b8576439628f1c953868c5b76b95e242c593f9baffe76fda"
+}
