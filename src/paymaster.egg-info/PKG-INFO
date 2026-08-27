@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: paymaster
+Version: 0.5.0
+Summary: Reference implementation for verifiable agent-spend receipts
+Requires-Python: >=3.10
+License-File: LICENSE
+Provides-Extra: mcp
+Requires-Dist: mcp<2,>=1.6; extra == "mcp"
+Provides-Extra: test
+Requires-Dist: pytest>=8.0; extra == "test"
+Dynamic: license-file

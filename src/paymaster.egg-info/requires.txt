@@ -1,0 +1,6 @@
+
+[mcp]
+mcp<2,>=1.6
+
+[test]
+pytest>=8.0
