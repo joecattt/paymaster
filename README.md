@@ -7,6 +7,13 @@ agent-spend receipts
 
 **This is a reference implementation, not a complete financial control system.**
 
+## Origin
+
+Created by Joseph Anthony Reyna (JoeCat) in 2026. This repository is the
+original reference implementation of paymaster's receipt model. See
+[ORIGIN.md](ORIGIN.md) for the full provenance record, [CHANGELOG.md](CHANGELOG.md)
+for releases, and [AUTHORS.md](AUTHORS.md) for credit.
+
 When software spends money on its own, someone must be able to prove afterward
 what it was allowed to do, what it did, and what it actually cost — across
 vendors, without trusting any single party's word. This repo is a working,

@@ -47,6 +47,10 @@
     {
       "claim": "mcp_server/server.py is syntactically valid and the advertised test quickstart works on a fresh clone with no local state",
       "probe": "python3 -m py_compile mcp_server/server.py && PYTHONPATH=src python3 -m unittest discover -s tests -q"
+    },
+    {
+      "claim": "ORIGIN.md, AUTHORS.md, CHANGELOG.md exist and README links all three",
+      "probe": "test -f ORIGIN.md && test -f AUTHORS.md && test -f CHANGELOG.md && rg -q 'ORIGIN.md' README.md && rg -q 'CHANGELOG.md' README.md && rg -q 'AUTHORS.md' README.md"
     }
   ]
 }
