@@ -56,6 +56,59 @@ do?", including the parts that are awkward.
 - It cannot prove "all transactions accounted for" — only that the known set
   reconciles and whether aggregate drift shows unaccounted spend exists.
 
+## Quickstart
+
+```bash
+git clone https://github.com/joecattt/paymaster.git
+cd paymaster
+python3 -m venv .venv && source .venv/bin/activate
+pip install pytest jsonschema
+
+# run the test suite (86 tests, offline, no network/spend)
+PYTHONPATH=src python3 -m unittest discover -s tests -q
+
+# see the full command list (starts empty — you feed it your own ledger)
+PYTHONPATH=src ./bin/paymaster
+
+# see a real receipt without touching your own data
+cat examples/receipt-real-money.json
+```
+
+`bin/paymaster` is a standalone script (`src/` on `PYTHONPATH`, no packaging
+step). It reads/writes state under `~/.local/state/paymaster` by default —
+empty until you run `ingest` or `x402` against your own spend events.
+
+## MCP server
+
+An MCP client (Claude Desktop, Claude Code, any MCP host) can drive paymaster
+directly. Every tool shells out to `bin/paymaster` — same binary as the CLI,
+nothing reimplemented.
+
+```bash
+pip install "mcp>=1.6,<2"
+PYTHONPATH=src python3 -m mcp_server.server
+```
+
+```json
+{
+  "mcpServers": {
+    "paymaster": {
+      "command": "python3",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "/path/to/paymaster",
+      "env": { "PYTHONPATH": "/path/to/paymaster/src" }
+    }
+  }
+}
+```
+
+Exposed: `ingest`, `check`, `report`, `consider`, `coverage`, `verify`,
+`explain`, `reconcile_counters` — the read/reconcile surface. Deliberately
+**not** exposed: `grant`, `revoke-cap`, `enroll` (capability and key
+management stay CLI-only, human-invoked) and `x402` (needs on-disk payment
+files). An MCP client gets visibility into what an agent spent and whether it
+reconciles — not the keys to mint or revoke authority.
+
 ## Scope, painfully clear
 This implementation demonstrates authorization, reconciliation, evidence
 linkage, coverage-gap detection, and uncertainty handling. It does **not**

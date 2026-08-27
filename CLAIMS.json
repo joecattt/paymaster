@@ -39,6 +39,14 @@
     {
       "claim": "reconcile detects and overwrites corrupt counter cache",
       "probe": "python3 -m unittest tests.test_counters.DifferentialEquivalence.test_reconcile_detects_corrupt_cache -q"
+    },
+    {
+      "claim": "MCP server exposes exactly ingest/check/report/consider/coverage/verify/explain/reconcile_counters, and never grant/revoke-cap/enroll/x402",
+      "probe": "for t in ingest check report consider coverage verify explain reconcile_counters; do grep -q \"def $t\" mcp_server/server.py || exit 1; done && ! grep -qE 'def (grant|revoke_cap|enroll|x402)' mcp_server/server.py"
+    },
+    {
+      "claim": "mcp_server/server.py is syntactically valid and the advertised test quickstart works on a fresh clone with no local state",
+      "probe": "python3 -m py_compile mcp_server/server.py && PYTHONPATH=src python3 -m unittest discover -s tests -q"
     }
   ]
 }
