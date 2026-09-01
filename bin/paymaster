@@ -90,7 +90,7 @@ def main():
             print(f"licensed: no — trial ${t['spent']:.2f}/${t['limit']:.2f} reconciled spend "
                   f"(${t['remaining']:.2f} remaining)")
         if not L.enforcement_enabled():
-            print(f"enforcement: DORMANT (nothing is gated; set {L.ENFORCE_ENV}=1 to enable)")
+            print(f"enforcement: OFF ({L.ENFORCE_ENV}=0 — nothing is gated)")
         elif not t["enforceable"]:
             print("enforcement: REQUESTED but inactive — the 'cryptography' package is "
                   "missing, so no key could be verified. Failing open rather than "
@@ -103,9 +103,15 @@ def main():
         t = L.check_trial(led, STATE)
         if not t["ok"]:
             print(f"TRIAL EXHAUSTED: ${t['spent']:.2f} of ${t['limit']:.2f} reconciled spend used.")
-            print(f"Buy a license to keep using '{cmd}': {L.PAY_LINK}")
+            print(f"Buy a license to keep using '{cmd}' ($49 one-time): {L.PAY_LINK}")
             print("Then: paymaster license activate <key>")
+            print(f"Key won't activate, or you'd rather not pay? {L.SUPPORT_URL}")
+            print(f"Read-only commands (report, verify, explain, coverage) are never gated, "
+                  f"and {L.ENFORCE_ENV}=0 turns this off entirely — it's MIT source.")
             return 2
+        if t["warn"]:
+            print(f"NOTE: trial ${t['spent']:.2f} of ${t['limit']:.2f} used — "
+                  f"'{cmd}' stops at the cap. License: {L.PAY_LINK}", file=sys.stderr)
 
     if cmd == "ingest":
         cur, last = _cursor(), None

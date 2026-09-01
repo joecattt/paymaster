@@ -21,6 +21,11 @@ except ImportError:
 class TestLicense(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
+        # Saved and restored in tearDown: these are module globals, and
+        # leaving the test keypair installed would make any later test that
+        # checks the REAL embedded key silently compare against a fake one.
+        self._saved_priv_path = L.PRIVATE_KEY_PATH
+        self._saved_pub_hex = L.PUBLIC_KEY_HEX
         # Isolated test keypair — never touches the operator's real signing
         # key at ~/.config/paymaster/license_signing.key.
         priv = Ed25519PrivateKey.generate()
@@ -39,6 +44,10 @@ class TestLicense(unittest.TestCase):
         L.PRIVATE_KEY_PATH = priv_path
         L.PUBLIC_KEY_HEX = pub_bytes.hex()
         self.state_dir = os.path.join(self.tmp, "state")
+
+    def tearDown(self):
+        L.PRIVATE_KEY_PATH = self._saved_priv_path
+        L.PUBLIC_KEY_HEX = self._saved_pub_hex
 
     def test_sign_and_verify_roundtrip(self):
         key = L.sign_license("buyer@example.com", plan="lifetime")
@@ -138,10 +147,9 @@ class TestLicense(unittest.TestCase):
             L.reconciled_spend_usd = orig
 
 
-class TestEnforcementIsDormantByDefault(unittest.TestCase):
-    """The mechanism ships complete and switched off. These tests exist so that
-    turning it on is a deliberate act someone has to commit, not a default that
-    drifts back in unnoticed."""
+class TestEnforcementIsArmedByDefault(unittest.TestCase):
+    """Armed as of 2026-09-01. The off switch is documented and must keep
+    working — this is MIT source and the gate is honest about being optional."""
 
     def setUp(self):
         self._saved = os.environ.pop(L.ENFORCE_ENV, None)
@@ -151,17 +159,59 @@ class TestEnforcementIsDormantByDefault(unittest.TestCase):
         if self._saved is not None:
             os.environ[L.ENFORCE_ENV] = self._saved
 
-    def test_disabled_when_env_unset(self):
-        self.assertFalse(L.enforcement_enabled())
-
-    def test_disabled_for_any_value_other_than_1(self):
-        for value in ("0", "", "true", "yes", "2"):
-            os.environ[L.ENFORCE_ENV] = value
-            self.assertFalse(L.enforcement_enabled(), f"{value!r} must not enable")
-
-    def test_enabled_only_by_explicit_1(self):
-        os.environ[L.ENFORCE_ENV] = "1"
+    def test_armed_when_env_unset(self):
         self.assertTrue(L.enforcement_enabled())
+
+    def test_off_switch_accepts_the_documented_spellings(self):
+        for value in ("0", "false", "no", "off", " 0 "):
+            os.environ[L.ENFORCE_ENV] = value
+            self.assertFalse(L.enforcement_enabled(), f"{value!r} must disable")
+
+    def test_anything_else_leaves_it_armed(self):
+        for value in ("1", "", "yes", "true", "banana"):
+            os.environ[L.ENFORCE_ENV] = value
+            self.assertTrue(L.enforcement_enabled(), f"{value!r} must stay armed")
+
+
+class TestTrialWarning(unittest.TestCase):
+    """The wall must never be the first thing a user hears about the wall."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.state_dir = os.path.join(self.tmp, "state")
+        self.ledger = Ledger(os.path.join(self.tmp, "spend.jsonl"))
+        self._orig = L.reconciled_spend_usd
+
+    def tearDown(self):
+        L.reconciled_spend_usd = self._orig
+
+    def _at(self, spend):
+        L.reconciled_spend_usd = lambda ledger, table=None: spend
+        return L.check_trial(self.ledger, self.state_dir)
+
+    def test_quiet_well_below_the_cap(self):
+        t = self._at(L.TRIAL_LIMIT_USD * 0.5)
+        self.assertFalse(t["warn"])
+        self.assertTrue(t["ok"])
+
+    def test_warns_inside_the_last_fifth(self):
+        t = self._at(L.TRIAL_LIMIT_USD * L.WARN_AT_FRACTION)
+        self.assertTrue(t["warn"])
+        self.assertTrue(t["ok"], "warning is not a block")
+
+    def test_no_warning_once_actually_blocked(self):
+        t = self._at(L.TRIAL_LIMIT_USD + 1)
+        self.assertFalse(t["warn"], "past the cap the message is the block, not a warning")
+        self.assertFalse(t["ok"])
+
+
+# NOTE: "does the operator's real signing key still match the embedded public
+# key" is deliberately NOT tested here. tests/test_gate.py and
+# tests/test_capability.py repoint $HOME at a temp dir on import so the suite
+# can never touch real operator state — which is correct, and which makes this
+# suite the wrong place to assert anything about ~/.config. That check lives in
+# CLAIMS.json as an operator-machine probe, and bin/issue-license verifies every
+# key it mints before printing it.
 
 
 class TestFailsOpenWithoutCrypto(unittest.TestCase):

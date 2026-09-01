@@ -45,6 +45,25 @@ def main():
     if "--plan" in args:
         plan = args[args.index("--plan") + 1]
     key = L.sign_license(email, plan=plan)
+
+    # Never hand a buyer a key without checking it activates. sign_license uses
+    # the private key on this machine; verify_license uses the public key
+    # baked into the shipped module. If those two have drifted — a rotated
+    # signing key, an un-updated PUBLIC_KEY_HEX — minting silently "succeeds"
+    # and the customer pays for something that cannot be activated.
+    if L.verify_license(key) is None:
+        print(
+            "REFUSING TO ISSUE: this key does not verify against the "
+            "PUBLIC_KEY_HEX shipped in src/paymaster/license.py.\n"
+            f"  signing key: {L.PRIVATE_KEY_PATH}\n"
+            "  The two have diverged. Update PUBLIC_KEY_HEX to this signing "
+            "key's public half (see the generation snippet in this file's "
+            "docstring) — and note that doing so invalidates every key already "
+            "issued under the old one.",
+            file=sys.stderr,
+        )
+        return 2
+
     print(key)
     return 0
 

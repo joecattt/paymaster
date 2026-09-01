@@ -69,9 +69,20 @@
       "probe": "grep -q 'TRIAL_GATED = {\"ingest\", \"check\"}' bin/paymaster && grep -q 'cmd in TRIAL_GATED and L.enforcement_enabled()' bin/paymaster"
     },
     {
-      "claim": "license enforcement ships dormant — nothing is gated unless PAYMASTER_LICENSE=1 is set",
-      "where": "CHANGELOG.md Unreleased, src/paymaster/license.py ENFORCE_ENV",
-      "probe": "PYTHONPATH=src python3 -m unittest tests.test_license.TestEnforcementIsDormantByDefault -q && PYTHONPATH=src ./bin/paymaster license status | grep -q 'enforcement: DORMANT'"
+      "claim": "license enforcement is armed by default and PAYMASTER_LICENSE=0 turns it off",
+      "where": "README.md Trial and license, src/paymaster/license.py ENFORCE_ENV",
+      "probe": "PYTHONPATH=src python3 -m unittest tests.test_license.TestEnforcementIsArmedByDefault -q && PYTHONPATH=src ./bin/paymaster license status | grep -q 'enforcement: ACTIVE' && PAYMASTER_LICENSE=0 PYTHONPATH=src ./bin/paymaster license status | grep -q 'enforcement: OFF'"
+    },
+    {
+      "claim": "a license minted on the operator's machine actually activates — the signing key and the shipped PUBLIC_KEY_HEX have not drifted",
+      "where": "src/paymaster/license.py PUBLIC_KEY_HEX, bin/issue-license",
+      "probe": "test ! -f \"$HOME/.config/paymaster/license_signing.key\" || ./bin/issue-license claims-probe@localhost > /dev/null",
+      "_note": "passes vacuously on any machine without the operator signing key, which is every machine but one. On the operator's box it mints a throwaway key and issue-license refuses to print one that will not verify."
+    },
+    {
+      "claim": "the trial warns before it blocks, at 80% of the cap",
+      "where": "README.md Trial and license",
+      "probe": "PYTHONPATH=src python3 -m unittest tests.test_license.TestTrialWarning -q"
     },
     {
       "claim": "without the cryptography package the gate fails open rather than locking out a paid user, and activate blames the missing package instead of the key",

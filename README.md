@@ -201,6 +201,39 @@ management stay CLI-only, human-invoked) and `x402` (needs on-disk payment
 files). An MCP client gets visibility into what an agent spent and whether it
 reconciles — not the keys to mint or revoke authority.
 
+## Trial and license
+
+Said up front rather than sprung at the wall: **`ingest` and `check` stop
+working after $50 of priced spend has passed through your ledger, unless you
+activate a license ($49, one-time, not a subscription).** You get a warning at
+80%, and `paymaster license status` tells you where you stand at any time.
+
+Never gated, at any spend level: `report`, `verify`, `explain`, `coverage`,
+`prove-nonzero` — the entire read and audit surface. A tool whose argument is
+"check this yourself instead of trusting me" cannot put the checking behind a
+paywall, so it doesn't.
+
+Three things stated plainly, because you will find all of them anyway:
+
+- **The license is a request, not a lock.** This is MIT source. Deleting the
+  check is one edit, the license explicitly permits it, and `PAYMASTER_LICENSE=0`
+  does it for you without editing anything. It is here to ask people who get
+  real value from this to pay for it. It cannot make anyone.
+- **Spend that cannot be priced does not count** against the trial. It is
+  excluded, never guessed at $0 — the same rule the receipts follow.
+- **Verification is offline.** Ed25519 signature, checked against a public key
+  compiled into the source. No phone-home, no license server, nothing to
+  contact and nothing that can lock you out later. A tool that demanded you
+  trust an unverifiable remote check would be contradicting its own README.
+
+```bash
+paymaster license status            # where you stand
+paymaster license activate <key>    # after buying
+PAYMASTER_LICENSE=0 paymaster ingest  # the off switch
+```
+
+If a key won't activate: https://github.com/joecattt/paymaster/issues
+
 ## Scope, painfully clear
 
 Point-by-point answers on trust model, rules, implementation and how this

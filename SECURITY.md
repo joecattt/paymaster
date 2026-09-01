@@ -20,7 +20,15 @@ bypass, by design); provider-side correctness of their own records.
 - The git anchor proves repository continuity, not external witness.
 - Provider-reported cost is authoritative for the reported charge *at the time
   observed* and may be corrected later; "reconciled" is not "economically final."
-- The gate is shadow-mode: it observes and reports; it does not block.
+- The **policy** gate is shadow-mode: it observes and reports; it does not
+  block. A would-DENY is not a prevented loss. This is unchanged and is the
+  gate every claim in RECEIPT-SPEC.md refers to.
+- The **license** gate is a separate mechanism and does block, by design:
+  `ingest`/`check` refuse past the trial cap without a license (see README,
+  "Trial and license"). It is commercial metering, not a security control, it
+  makes no safety claim, and `PAYMASTER_LICENSE=0` disables it. Do not read the
+  shadow-mode invariant above as covering it, and do not report its
+  bypassability as a vulnerability — the README already documents the bypass.
 
 ## Safe by default
 The test suite is offline and free. No command in this repository makes a paid

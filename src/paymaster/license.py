@@ -56,21 +56,34 @@ except ImportError:
 TRIAL_LIMIT_USD = 50.00
 PAY_LINK = "https://www.paypal.com/ncp/payment/AE8CZW8NUUQQ2"  # $49 one-time, JoeCat LLC
 
-# Enforcement ships DORMANT. The public repository is MIT and is currently
-# being read by reviewers who were invited to audit it; a live paywall on
-# `ingest`/`check` would contradict that invitation before any distribution
-# decision has actually been made. The mechanism is complete, tested, and one
-# environment variable away from active:
+# Enforcement is ACTIVE (armed 2026-09-01, operator's decision). `ingest` and
+# `check` stop working once TRIAL_LIMIT_USD of priced spend has passed through
+# the ledger without a license. Everything else — report, verify, explain,
+# coverage, the whole read/audit surface — stays free forever, because a tool
+# whose pitch is "you can check this yourself" cannot paywall the checking.
 #
-#     PAYMASTER_LICENSE=1 paymaster ingest
+# Off switch, for anyone who wants the un-gated tool:
 #
-# Turning it on for a commercial distribution is a business decision, not a
-# code change. Until it is made, nothing is gated.
+#     PAYMASTER_LICENSE=0 paymaster ingest
+#
+# That is deliberate and documented, not an oversight. This is MIT source: the
+# check can be deleted in one edit, and the license explicitly permits that.
+# The gate exists to ask people who get real value from it to pay for it, not
+# to make paying unavoidable — a lock that only stops honest people is still
+# worth having, provided nobody pretends it is a lock.
 ENFORCE_ENV = "PAYMASTER_LICENSE"
+
+# Warn once the trial is this far along, so the wall is never a surprise.
+WARN_AT_FRACTION = 0.8
+
+# Where a buyer goes when a key will not activate. No support email is
+# published for this project, so this is the channel that actually exists.
+SUPPORT_URL = "https://github.com/joecattt/paymaster/issues"
 
 
 def enforcement_enabled() -> bool:
-    return os.environ.get(ENFORCE_ENV, "") == "1"
+    """Armed unless explicitly switched off with PAYMASTER_LICENSE=0."""
+    return os.environ.get(ENFORCE_ENV, "1").strip() not in ("0", "false", "no", "off")
 
 # Operator-only. Never distributed, never committed. bin/issue-license reads
 # this to mint keys; customers running `paymaster license activate` never
@@ -194,4 +207,6 @@ def check_trial(ledger, state_dir: str) -> dict:
         "remaining": max(0.0, remaining),
         "licensed": licensed,
         "enforceable": _HAVE_CRYPTO,
+        "warn": (not licensed) and _HAVE_CRYPTO
+        and TRIAL_LIMIT_USD * WARN_AT_FRACTION <= spent < TRIAL_LIMIT_USD,
     }

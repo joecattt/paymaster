@@ -11,13 +11,13 @@ release.
 - Packaging: `pyproject.toml` so the library installs via `pip install -e .`.
 - CI: GitHub Actions running the test suite on push/PR.
 - `ORIGIN.md`, `AUTHORS.md` — provenance and credit, explicit.
-- Trial + license gate (`src/paymaster/license.py`), **shipped dormant**:
-  enforcement runs only when `PAYMASTER_LICENSE=1` is set, and nothing is
-  gated otherwise. The mechanism is complete and tested; whether this
-  distribution charges for anything is a business decision that has not been
-  made, and a live paywall on an MIT repo currently under invited external
-  review would answer it by accident. Flipping it on is an environment
-  variable, not a code change. When enabled: `ingest`/`check` block
+- Trial + license gate (`src/paymaster/license.py`), **armed**: enforcement is
+  on by default; `PAYMASTER_LICENSE=0` turns it off, which is documented in the
+  README rather than hidden, because this is MIT source and the gate is a
+  request rather than a lock. Warns at 80% of the cap so the wall is never the
+  first a user hears of it. The read/audit surface (`report`, `verify`,
+  `explain`, `coverage`, `prove-nonzero`) is never gated at any spend level — a
+  tool arguing "check this yourself" cannot paywall the checking. `ingest`/`check` block
   once $50 of reconciled (priced) spend has passed through the ledger,
   unless a signed license key is activated. Ed25519 (asymmetric) signature
   check, offline, no phone-home server — consistent with the
@@ -43,7 +43,11 @@ release.
   failure mode is denial of service against legitimate users is worse than
   no control); (2) `CLAIMS.json` already carried a probe for
   `tests.test_license`, which passed locally and would have failed in any
-  fresh clone, because none of these files were committed. The claim was
+  fresh clone, because none of these files were committed. A third:
+  `bin/issue-license` could mint a key that no customer could activate if the
+  signing key and the shipped `PUBLIC_KEY_HEX` ever diverged — it now verifies
+  every key against the public half before printing it, and refuses rather than
+  handing a buyer a dead key. The claim was
   published before the code was — exactly the failure the CLAIMS discipline
   exists to catch, caught by it a week late.
 
