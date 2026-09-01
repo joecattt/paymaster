@@ -121,7 +121,10 @@ A conforming implementation **MUST NOT**:
 ## 8. The fictions (why this spec exists)
 
 Each clause of §6 was a mistake the reference implementation almost made and
-caught by experiment, not by taste:
+caught by experiment, not by taste. 8 and 9 are not ours — they were paid for by
+an operator of a pay-per-call tool marketplace who reviewed this spec in August
+2026 and described two live losses of exactly this shape. They are recorded here
+because the failure mode generalizes, not because it happened to us:
 
 1. would-DENY ≠ prevented loss (82% of a real would-DENY set was legitimate batch work)
 2. integrity ≠ completeness (tail truncation passed chain verification)
@@ -130,8 +133,24 @@ caught by experiment, not by taste:
 5. local record ≠ external truth (settlement arrived 8–30s late; silence is not $0)
 6. known-set reconciliation ≠ full coverage (no enumeration APIs exist; only aggregates bound the unknown)
 7. model consensus ≠ market evidence (the project's own panels are hypotheses, not buyers — this spec obeys its own rule)
+8. a capped result ≠ a measurement (a published "tools used in 30 days" figure
+   was the length of a LIMIT-20 query — it could never exceed 20, was read as an
+   inventory count, and live inventory was retired on it; the true number was 281)
+9. the conservative-looking tie-break ≠ the safe one (a price disagreement
+   resolved by taking the higher of two values is a one-way ratchet: a seller cut
+   their price tenfold and the stale figure was quoted for nine days, until the
+   seller emailed to say so)
+
+8 and 9 are the same failure as 5 and 6 seen from the other side. In 5 and 6 a
+missing measurement risks being read as zero; in 8 and 9 a *bounded or
+arbitrated* measurement is read as a real one. Both are a number that cannot
+mean what it is being asked to mean, presenting without a caveat. The rule that
+covers all four: **a field must carry how it was obtained, not only its value**
+— which is why every cost in this spec is graded (`reconciled` /
+`estimated` / `asserted` / `UNKNOWN`) and why the receipt takes the grade of its
+weakest populated field.
 
 ## 9. Reference implementation
 
-This repository. 64 tests; chain proven on real (small) money; every limitation
+This repository. 97 tests; chain proven on real (small) money; every limitation
 above discovered by running it, not by theorizing.

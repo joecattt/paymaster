@@ -7,27 +7,37 @@ under whose authority, or for which client. paymaster is the layer that does.**
 
 ## One concrete example, end to end
 
-An agency runs support-triage agents for eleven clients on shared provider
-keys, and rebills usage. On 3 September, client #7 disputes a $4,182 line item.
+This one is not hypothetical. It was reported by an operator of a pay-per-call
+tool marketplace — a router that pays external sellers on a buyer's behalf under
+per-payer spend ceilings — reviewing this repo in August 2026, and it is quoted
+with the details that identify them removed:
 
-- **actor** — `agent-7`, an authenticated principal, not a shared API key
-- **event** — 12,400 model calls over a month
-- **rule** — a budget policy, recorded by hash (`policy=85010f7c…`), so the
-  version in force at the time is pinned and cannot be quietly re-written
-- **reader** — the client's controller, and the agency's auditor
-- **why they care** — the provider's invoice is one aggregate number. It cannot
-  attribute a cent of it to a client, an agent, or a declared purpose. The
-  agency's own spreadsheet is the agency's own word, in the agency's own
-  dispute.
+> a local process spent about $11 in a day while our telemetry recorded three
+> cents, because that process had no telemetry attached at all
 
-paymaster returns a per-action receipt: who acted, under whose authority, what
-policy decided, the provider's *own* reported cost cross-checked against an
-independently computed estimate — and an explicit statement of what it never
-saw. On the demo receipt the known transaction reconciles to the millionth of a
-cent (`reconcile: MATCH`) while `coverage` reports `UNACCOUNTED, gap: $0.1996`
-— real spend outside the governed route. "This transaction reconciles" and "the
-account is fully covered" are different claims, and the receipt refuses to blur
-them.
+- **actor** — a process nobody had instrumented. That is the normal case, not
+  the edge case.
+- **event** — a day of upstream API calls against a shared account.
+- **rule** — a per-payer spend ceiling that the unmetered process was never
+  routed through, so it was never evaluated against anything.
+- **reader** — the operator, who has to tell a buyer what a call cost, and who
+  discovered the shortfall by accident rather than by alarm.
+- **why they care** — their own telemetry said three cents and was *internally
+  consistent while being wrong by 366×*. Nothing in the system was positioned to
+  contradict it, because everything in the system derived from the same source.
+
+paymaster's answer to exactly this: `coverage.assess()` compares the sum of what
+the ledger knows against the provider's **own** aggregate total, and returns
+`UNACCOUNTED` with the size of the gap — proof that hidden spend exists, without
+claiming to know what it was. `assess_per_key()` goes further and names which
+principal the shortfall sits under. It is a smoke alarm, not a camera, and the
+docstring says so in those words.
+
+That is the shape of the whole product: the known transaction reconciles to the
+millionth of a cent (`reconcile: MATCH`) while `coverage` separately reports
+`UNACCOUNTED, gap: $0.1996` on the demo receipt. **"This transaction reconciles"
+and "the account is fully covered" are different claims**, and a system that
+blurs them will report three cents right up until someone emails you.
 
 ## "My card issuer already reconciles this. Why do I need you?"
 
@@ -98,11 +108,19 @@ know about reconciles" and "the account is fully covered" are different claims,
 and the receipt refuses to blur them. When a provider response is lost, the
 verdict is UNKNOWN — never an inferred $0.
 
-## The seven fictions
-The intellectual core — each one a mistake this implementation almost made and
-caught by experiment: would-DENY ≠ prevented loss · integrity ≠ completeness ·
-declaration ≠ legitimacy · fail-closed ≠ safety · local record ≠ external truth ·
-known-set reconciliation ≠ coverage · model consensus ≠ market evidence.
+## The nine fictions
+The intellectual core — each one a mistake caught by experiment: would-DENY ≠
+prevented loss · integrity ≠ completeness · declaration ≠ legitimacy ·
+fail-closed ≠ safety · local record ≠ external truth · known-set reconciliation
+≠ coverage · model consensus ≠ market evidence · **a capped result ≠ a
+measurement** · **the conservative-looking tie-break ≠ the safe one**.
+
+The last two were paid for by someone else — a marketplace operator who read
+this spec and reported two live losses of that shape: a "tools used in 30 days"
+figure that was really the length of a LIMIT-20 query (true number: 281), and a
+price disagreement resolved by taking the higher value, which quietly held a
+stale price for nine days after a tenfold cut. Full write-up in
+[RECEIPT-SPEC.md §8](RECEIPT-SPEC.md).
 
 ## The centerpiece command
 

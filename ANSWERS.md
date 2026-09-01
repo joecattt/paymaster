@@ -106,7 +106,7 @@ reconciliation path; receipts are reproducible.
 
 **What happens on failure?** Nothing is blocked. The gate is **shadow mode by
 design**: it records `DENY` and the action proceeds. A would-DENY is not a
-prevented loss — that is one of the "seven fictions" this implementation
+prevented loss — that is one of the "nine fictions" this implementation
 explicitly refuses to trade on.
 
 ---
