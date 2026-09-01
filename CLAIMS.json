@@ -86,7 +86,7 @@
     },
     {
       "claim": "without the cryptography package the gate fails open rather than locking out a paid user, and activate blames the missing package instead of the key",
-      "where": "CHANGELOG.md Unreleased, src/paymaster/license.py check_trial",
+      "where": "CHANGELOG.md v0.5.0, src/paymaster/license.py check_trial",
       "probe": "PYTHONPATH=src python3 -m unittest tests.test_license.TestFailsOpenWithoutCrypto -q"
     },
     {

@@ -2,10 +2,9 @@
 
 Versions below are grounded in actual git tags/commits — see `git log
 <tag>` for the full diff behind each one. `pyproject.toml` carries the
-current version (`0.5.0`); this file will get a matching tag at the next
-release.
+current version (`0.5.0`), tagged `v0.5.0`.
 
-## [Unreleased] — 0.5.0
+## [0.5.0] — 2026-09-01
 
 - MCP server (`mcp_server/server.py`) — 9 tools wrapping the SDK.
 - Packaging: `pyproject.toml` so the library installs via `pip install -e .`.
