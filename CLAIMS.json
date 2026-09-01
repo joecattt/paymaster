@@ -1,8 +1,14 @@
 {
   "claims": [
     {
-      "claim": "11+ unit tests pass",
-      "probe": "python3 -m unittest discover -s tests -q"
+      "claim": "the test suite is 97 tests and they pass",
+      "where": "README.md Quickstart",
+      "probe": "test $(PYTHONPATH=src python3 -m unittest discover -s tests -q 2>&1 | grep -oE 'Ran [0-9]+ tests' | grep -oE '[0-9]+') -ge 97"
+    },
+    {
+      "claim": "the gate is shadow-mode and blocks nothing; a would-DENY is recorded, not enforced",
+      "where": "README.md How it gets in the middle + ANSWERS.md Rules and policy",
+      "probe": "python3 -m unittest tests.test_gate.TestShadowGate -q"
     },
     {
       "claim": "ingest is idempotent",
@@ -51,6 +57,18 @@
     {
       "claim": "ORIGIN.md, AUTHORS.md, CHANGELOG.md exist and README links all three",
       "probe": "test -f ORIGIN.md && test -f AUTHORS.md && test -f CHANGELOG.md && rg -q 'ORIGIN.md' README.md && rg -q 'CHANGELOG.md' README.md && rg -q 'AUTHORS.md' README.md"
+    },
+    {
+      "claim": "license sign/verify/activate roundtrip works, rejects tampered/garbage/forged keys, and verification needs only the public key (not the private signing key)",
+      "probe": "python3 -m unittest tests.test_license -q"
+    },
+    {
+      "claim": "ingest/check block once trial cap is exceeded and no license is active; report/verify/explain stay ungated",
+      "probe": "grep -q 'TRIAL_GATED = {\"ingest\", \"check\"}' bin/paymaster"
+    },
+    {
+      "claim": "issue-license is operator-only — not reachable via bin/paymaster dispatch or the MCP server",
+      "probe": "! grep -qE 'cmd == \"issue' bin/paymaster && ! grep -q 'issue.license' mcp_server/server.py"
     }
   ]
 }
