@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Operator-only: mint a signed paymaster license key after a PayPal payment
+lands. Not exposed via bin/paymaster or the MCP server — human-invoked only,
+same as `grant`/`revoke-cap`/`enroll` (see mcp_server/server.py's exclusion
+list).
+
+Requires the Ed25519 signing key at ~/.config/paymaster/license_signing.key
+(0600, never distributed, never committed). To generate it once — and print
+the matching public key, which must be pasted into license.py's
+PUBLIC_KEY_HEX before any key issued by it will verify:
+
+  python3 -c "
+  from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+  from cryptography.hazmat.primitives import serialization as s
+  import os
+  p = os.path.expanduser('~/.config/paymaster/license_signing.key')
+  os.makedirs(os.path.dirname(p), exist_ok=True)
+  k = Ed25519PrivateKey.generate()
+  open(os.open(p, os.O_WRONLY|os.O_CREAT, 0o600), 'wb').write(
+      k.private_bytes(s.Encoding.Raw, s.PrivateFormat.Raw, s.NoEncryption()))
+  print('PUBLIC_KEY_HEX =', k.public_key().public_bytes(
+      s.Encoding.Raw, s.PublicFormat.Raw).hex())
+  "
+
+Rotating the key invalidates every license already issued under the old one.
+
+Usage:
+  ./bin/issue-license buyer@example.com
+  ./bin/issue-license buyer@example.com --plan lifetime   # default plan
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "src"))
+from paymaster import license as L
+
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        print(__doc__.strip())
+        return 2
+    email = args[0]
+    plan = "lifetime"
+    if "--plan" in args:
+        plan = args[args.index("--plan") + 1]
+    key = L.sign_license(email, plan=plan)
+    print(key)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

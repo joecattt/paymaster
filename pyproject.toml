@@ -12,6 +12,7 @@ dependencies = []
 [project.optional-dependencies]
 mcp = ["mcp>=1.6,<2"]
 test = ["pytest>=8.0"]
+license = ["cryptography>=42"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

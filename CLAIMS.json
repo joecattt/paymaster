@@ -11,8 +11,10 @@
       "probe": "python3 -m unittest tests.test_gate.TestShadowGate -q"
     },
     {
-      "claim": "ingest is idempotent",
-      "probe": "./bin/paymaster ingest && ./bin/paymaster ingest | grep -q 'ingested 0 new'"
+      "claim": "ingest is idempotent — a cursor-advanced re-fetch of the same source yields nothing",
+      "where": "bin/paymaster usage line, src/paymaster/adapters/airoute.py",
+      "probe": "PYTHONPATH=src python3 -m unittest tests.test_paymaster.TestAiroute.test_fetch_idempotent_shape -q",
+      "_note": "was './bin/paymaster ingest && ./bin/paymaster ingest | grep ...', which MUTATED the real ledger and auto-committed anchor commits every time reconcile ran, and was racy against live telemetry arriving between the two calls. A probe must observe the claim, not perform it."
     },
     {
       "claim": "ledger chain verifies",
@@ -63,8 +65,18 @@
       "probe": "python3 -m unittest tests.test_license -q"
     },
     {
-      "claim": "ingest/check block once trial cap is exceeded and no license is active; report/verify/explain stay ungated",
-      "probe": "grep -q 'TRIAL_GATED = {\"ingest\", \"check\"}' bin/paymaster"
+      "claim": "when enforcement is enabled, ingest/check block once the trial cap is exceeded and no license is active; report/verify/explain stay ungated",
+      "probe": "grep -q 'TRIAL_GATED = {\"ingest\", \"check\"}' bin/paymaster && grep -q 'cmd in TRIAL_GATED and L.enforcement_enabled()' bin/paymaster"
+    },
+    {
+      "claim": "license enforcement ships dormant — nothing is gated unless PAYMASTER_LICENSE=1 is set",
+      "where": "CHANGELOG.md Unreleased, src/paymaster/license.py ENFORCE_ENV",
+      "probe": "PYTHONPATH=src python3 -m unittest tests.test_license.TestEnforcementIsDormantByDefault -q && PYTHONPATH=src ./bin/paymaster license status | grep -q 'enforcement: DORMANT'"
+    },
+    {
+      "claim": "without the cryptography package the gate fails open rather than locking out a paid user, and activate blames the missing package instead of the key",
+      "where": "CHANGELOG.md Unreleased, src/paymaster/license.py check_trial",
+      "probe": "PYTHONPATH=src python3 -m unittest tests.test_license.TestFailsOpenWithoutCrypto -q"
     },
     {
       "claim": "issue-license is operator-only — not reachable via bin/paymaster dispatch or the MCP server",

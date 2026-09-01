@@ -11,6 +11,41 @@ release.
 - Packaging: `pyproject.toml` so the library installs via `pip install -e .`.
 - CI: GitHub Actions running the test suite on push/PR.
 - `ORIGIN.md`, `AUTHORS.md` — provenance and credit, explicit.
+- Trial + license gate (`src/paymaster/license.py`), **shipped dormant**:
+  enforcement runs only when `PAYMASTER_LICENSE=1` is set, and nothing is
+  gated otherwise. The mechanism is complete and tested; whether this
+  distribution charges for anything is a business decision that has not been
+  made, and a live paywall on an MIT repo currently under invited external
+  review would answer it by accident. Flipping it on is an environment
+  variable, not a code change. When enabled: `ingest`/`check` block
+  once $50 of reconciled (priced) spend has passed through the ledger,
+  unless a signed license key is activated. Ed25519 (asymmetric) signature
+  check, offline, no phone-home server — consistent with the
+  MIT/auditable-by-design posture. Verification uses only the public key
+  embedded in the module; the private key stays operator-side
+  (`~/.config/paymaster/license_signing.key`, 0600, never distributed), so
+  no customer machine needs a secret that could also mint free keys — an
+  HMAC/shared-secret draft of this had exactly that hole and was replaced
+  before shipping. Unpriceable spend is excluded from the trial count,
+  never guessed at $0. `bin/issue-license` is operator-only (not exposed
+  via CLI dispatch or the MCP server), same exclusion pattern as
+  `grant`/`enroll`. Requires the optional `cryptography` dependency
+  (`pip install '.[license]'`); still bypassable by anyone who patches the
+  enforcement call site out of the (MIT) source — that tradeoff was
+  explicit, not an oversight. Pay link: $49 one-time via PayPal (JoeCat
+  LLC), not a subscription — no hosted billing backend exists to justify
+  recurring charges.
+  Two defects found and fixed before this landed: (1) with `cryptography`
+  absent, every key silently failed to verify, so an over-cap customer who
+  had *paid* was locked out and told their valid key "does not verify" —
+  `activate()` now names the missing package, and `check_trial()` fails OPEN
+  when no key could be verified at all, per fiction 4 (a control whose
+  failure mode is denial of service against legitimate users is worse than
+  no control); (2) `CLAIMS.json` already carried a probe for
+  `tests.test_license`, which passed locally and would have failed in any
+  fresh clone, because none of these files were committed. The claim was
+  published before the code was — exactly the failure the CLAIMS discipline
+  exists to catch, caught by it a week late.
 
 ## v0.2.0 — 2026-08-24
 

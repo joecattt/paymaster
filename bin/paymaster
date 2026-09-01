@@ -16,13 +16,15 @@
   paymaster reconcile-counters  rebuild counters from ledger, compare to cache; exit 2 on drift
   paymaster coverage [provider]  Σ(known) vs provider aggregate; exit 2 if unaccounted spend exists
   paymaster fire-drill        replay 2026 viral runaways vs your policy (SHADOW; would-have-denied card)
+  paymaster license status    show trial spend vs $50 cap and whether a license is active
+  paymaster license activate <key>  save a signed license key (see PAY_LINK on trial exhaustion)
 """
 import json
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "src"))
-from paymaster import budgets as B, pricing as P, report as R
+from paymaster import budgets as B, pricing as P, report as R, license as L
 from paymaster.adapters import airoute, x402
 from paymaster.ledger import Ledger
 
@@ -31,6 +33,10 @@ LEDGER = os.path.join(STATE, "spend.jsonl")
 CURSOR = os.path.join(STATE, "cursor.json")
 REPO = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ANCHORS = os.path.join(REPO, "anchors.jsonl")
+
+# Commands that deliver paymaster's core value (reconciling/gating real spend).
+# Read-only commands (report, verify, explain, ...) stay free forever.
+TRIAL_GATED = {"ingest", "check"}
 
 
 def _anchor(led):
@@ -63,6 +69,43 @@ def main():
         print(__doc__.strip())
         return 0
     cmd, led = args[0], Ledger(LEDGER)
+
+    if cmd == "license":
+        sub = args[1] if len(args) > 1 else "status"
+        if sub == "activate":
+            if len(args) < 3:
+                print("usage: paymaster license activate <key>")
+                return 2
+            try:
+                payload = L.activate(args[2], STATE)
+            except (ValueError, RuntimeError) as e:
+                print(f"REJECTED: {e}")
+                return 2
+            print(f"activated: {payload['plan']} license for {payload['email']}")
+            return 0
+        t = L.check_trial(led, STATE)
+        if t["licensed"]:
+            print("licensed: yes")
+        else:
+            print(f"licensed: no — trial ${t['spent']:.2f}/${t['limit']:.2f} reconciled spend "
+                  f"(${t['remaining']:.2f} remaining)")
+        if not L.enforcement_enabled():
+            print(f"enforcement: DORMANT (nothing is gated; set {L.ENFORCE_ENV}=1 to enable)")
+        elif not t["enforceable"]:
+            print("enforcement: REQUESTED but inactive — the 'cryptography' package is "
+                  "missing, so no key could be verified. Failing open rather than "
+                  "locking out a paid user (pip install '.[license]').")
+        else:
+            print("enforcement: ACTIVE")
+        return 0
+
+    if cmd in TRIAL_GATED and L.enforcement_enabled():
+        t = L.check_trial(led, STATE)
+        if not t["ok"]:
+            print(f"TRIAL EXHAUSTED: ${t['spent']:.2f} of ${t['limit']:.2f} reconciled spend used.")
+            print(f"Buy a license to keep using '{cmd}': {L.PAY_LINK}")
+            print("Then: paymaster license activate <key>")
+            return 2
 
     if cmd == "ingest":
         cur, last = _cursor(), None
