@@ -154,6 +154,10 @@ def verify_chain(chain: list, *, now: datetime | None = None) -> dict:
             return {"valid": False, "grade": "missing", "reason": f"NO_ISSUER_KEY[{i}]"}
         if not hmac_mod.compare_digest(expect, cap.get("sig", "")):
             return {"valid": False, "grade": "missing", "reason": f"BAD_SIGNATURE[{i}]"}
+        if i == 0 and (cap.get("parent_id") is not None or cap.get("depth") != 0):
+            # PM-001: a chain must be anchored at a root, else revoking the
+            # (omitted) ancestors cannot cascade into it (I-CAP3).
+            return {"valid": False, "grade": "missing", "reason": "NOT_ROOT_ANCHORED"}
         if cap["id"] in revoked:
             return {"valid": False, "grade": "missing", "reason": f"REVOKED[{i}] (cascades)"}
         if cap["expires"] <= now.isoformat(timespec="seconds"):
@@ -161,6 +165,8 @@ def verify_chain(chain: list, *, now: datetime | None = None) -> dict:
         if prev is not None:
             if cap["parent_id"] != prev["id"]:
                 return {"valid": False, "grade": "missing", "reason": f"BROKEN_LINK[{i}]"}
+            if cap.get("depth") != prev["depth"] + 1:
+                return {"valid": False, "grade": "missing", "reason": f"BAD_DEPTH[{i}]"}
             if cap["issuer"] != prev["subject"]:
                 return {"valid": False, "grade": "missing", "reason": f"ISSUER_NOT_HOLDER[{i}]"}
             try:

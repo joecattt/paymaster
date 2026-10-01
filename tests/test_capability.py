@@ -94,5 +94,46 @@ class Capability(unittest.TestCase):
                 principal.enroll(holders[i])
                 cur = C.delegate(cur, cur["subject"], holders[(i+1) % 5], allow_delegate=True)
 
+class ChainAnchoring(unittest.TestCase):
+    """PM-001: a chain must start at a root, else revoked ancestors are invisible."""
+    @classmethod
+    def setUpClass(cls):
+        for p in ("company", "agent-a", "agent-b", "agent-c"):
+            principal.enroll(p)
+
+    def _chain(self):
+        root = C.issue("company", "agent-a", scope={"provider": "x"}, expires=iso(hours=2),
+                       max_usd=20.0, max_calls=10, allow_delegate=True)
+        child = C.delegate(root, "agent-a", "agent-b", expires=iso(hours=1), allow_delegate=True)
+        leaf = C.delegate(child, "agent-b", "agent-c", expires=iso(minutes=30))
+        return root, child, leaf
+
+    def test_leaf_alone_is_not_valid(self):
+        root, child, leaf = self._chain()
+        v = C.verify_chain([leaf])
+        self.assertFalse(v["valid"]); self.assertEqual(v["reason"], "NOT_ROOT_ANCHORED")
+        self.assertNotIn("effective", v)
+
+    def test_headless_chain_is_not_valid(self):
+        root, child, leaf = self._chain()
+        v = C.verify_chain([child, leaf])
+        self.assertFalse(v["valid"]); self.assertEqual(v["reason"], "NOT_ROOT_ANCHORED")
+
+    def test_revoked_root_invalidates_truncated_chains(self):
+        root, child, leaf = self._chain()
+        C.revoke(root["id"], "cascade")
+        for chain in ([root, child, leaf], [child, leaf], [leaf]):
+            self.assertFalse(C.verify_chain(chain)["valid"])
+
+    def test_full_chain_still_valid(self):
+        root, child, leaf = self._chain()
+        self.assertTrue(C.verify_chain([root, child, leaf])["valid"])
+        self.assertTrue(C.verify_chain([root])["valid"])
+
+    def test_skipped_link_is_rejected(self):
+        root, child, leaf = self._chain()
+        v = C.verify_chain([root, leaf])
+        self.assertFalse(v["valid"]); self.assertIn("BROKEN_LINK", v["reason"])
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
