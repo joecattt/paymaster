@@ -44,11 +44,27 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _parse_exp(value) -> datetime:
+    """PM-002: parse an expiry into a timezone-aware datetime, or raise
+    ValueError. Fails closed: non-strings (None, int, float, bool, bytes),
+    unparseable strings and naive (offset-less) timestamps are all invalid.
+    A trailing 'Z' is read as UTC. None is NOT 'no expiry' (no code, test or
+    doc in the repo grants that meaning; `grant` always sets an expiry)."""
+    if not isinstance(value, str):
+        raise ValueError(f"expiry must be an ISO-8601 string, got {type(value).__name__}")
+    txt = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+    dt = datetime.fromisoformat(txt)          # ValueError if malformed
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        raise ValueError("expiry must carry a timezone offset")
+    return dt
+
+
 def issue(issuer: str, subject: str, *, scope: dict, expires: str,
           max_usd=None, max_calls=None, allow_delegate=False,
           policy_hash=None, parent: dict | None = None) -> dict:
     """Issue a capability. With `parent`, this is a DELEGATION and every bound
     is checked monotonic against the parent before signing."""
+    _parse_exp(expires)                      # PM-002: refuse to sign a malformed expiry
     body = {
         "cap_version": CAP_VERSION,
         "issuer": issuer,
@@ -87,12 +103,17 @@ def delegate(parent: dict, issuer: str, subject: str, *, scope=None,
     eff_scope.update(scope or {})            # adding keys only NARROWS
     return issue(issuer, subject,
                  scope=eff_scope,
-                 expires=min(expires or parent["expires"], parent["expires"]),
+                 expires=_earlier(expires or parent["expires"], parent["expires"]),
                  max_usd=_min_bound(max_usd, parent["max_usd"]),
                  max_calls=_min_bound(max_calls, parent["max_calls"]),
                  allow_delegate=allow_delegate and parent["allow_delegate"],
                  policy_hash=parent.get("policy_hash"),
                  parent=parent)
+
+
+def _earlier(a: str, b: str) -> str:
+    """The earlier INSTANT of two expiry strings (not the lexicographic min)."""
+    return a if _parse_exp(a) <= _parse_exp(b) else b
 
 
 def _min_bound(child, parent):
@@ -105,7 +126,7 @@ def _min_bound(child, parent):
 
 def _check_monotonic(parent: dict, child: dict) -> None:
     """I-CAP1: child ⊆ parent, on every dimension."""
-    if child["expires"] > parent["expires"]:
+    if _parse_exp(child["expires"]) > _parse_exp(parent["expires"]):
         raise PermissionError("child capability outlives its parent")
     for k, v in parent["scope"].items():
         if child["scope"].get(k) != v:
@@ -152,6 +173,8 @@ def verify_chain(chain: list, *, now: datetime | None = None) -> dict:
             expect = _sign(cap["issuer"], body)
         except (FileNotFoundError, ValueError):
             return {"valid": False, "grade": "missing", "reason": f"NO_ISSUER_KEY[{i}]"}
+        except (TypeError, KeyError):         # PM-002: unserializable/missing fields, e.g. bytes expiry
+            return {"valid": False, "grade": "missing", "reason": f"MALFORMED[{i}]"}
         if not hmac_mod.compare_digest(expect, cap.get("sig", "")):
             return {"valid": False, "grade": "missing", "reason": f"BAD_SIGNATURE[{i}]"}
         if i == 0 and (cap.get("parent_id") is not None or cap.get("depth") != 0):
@@ -160,7 +183,11 @@ def verify_chain(chain: list, *, now: datetime | None = None) -> dict:
             return {"valid": False, "grade": "missing", "reason": "NOT_ROOT_ANCHORED"}
         if cap["id"] in revoked:
             return {"valid": False, "grade": "missing", "reason": f"REVOKED[{i}] (cascades)"}
-        if cap["expires"] <= now.isoformat(timespec="seconds"):
+        try:
+            exp_dt = _parse_exp(cap.get("expires"))
+        except ValueError as e:
+            return {"valid": False, "grade": "missing", "reason": f"INVALID_EXPIRY[{i}]: {e}"}
+        if exp_dt <= now:
             return {"valid": False, "grade": "missing", "reason": f"EXPIRED[{i}]"}
         if prev is not None:
             if cap["parent_id"] != prev["id"]:

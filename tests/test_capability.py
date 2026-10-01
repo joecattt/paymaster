@@ -134,6 +134,78 @@ class ChainAnchoring(unittest.TestCase):
         root, child, leaf = self._chain()
         v = C.verify_chain([root, leaf])
         self.assertFalse(v["valid"]); self.assertIn("BROKEN_LINK", v["reason"])
+class ExpiryParsing(unittest.TestCase):
+    """PM-002: expiry is parsed to aware datetimes and compared as instants; fail closed."""
+    NOW = datetime(2026, 10, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    @classmethod
+    def setUpClass(cls):
+        principal.enroll("company")
+        cls.base = C.issue("company", "company", scope={}, expires=iso(hours=1))
+
+    def _signed(self, expires):
+        """A cap signed by a legitimate key holder carrying an arbitrary expiry value."""
+        body = {k: v for k, v in self.base.items() if k not in ("sig", "id")}
+        body["expires"] = expires
+        body["id"] = "x" + str(abs(hash(repr(expires))))
+        body["sig"] = C._sign("company", {k: v for k, v in body.items() if k != "sig"})
+        return body
+
+    def _v(self, expires):
+        return C.verify_chain([self._signed(expires)], now=self.NOW)
+
+    def test_garbage_strings_are_invalid_not_immortal(self):
+        for bad in ("zzzz", "9999", "zzzz-never", "", "2025/01/01", "12/31/2025"):
+            v = self._v(bad)
+            self.assertFalse(v["valid"], bad); self.assertIn("INVALID_EXPIRY", v["reason"], bad)
+
+    def test_non_string_types_fail_closed_without_crash(self):
+        for bad in (None, 1, 1.5, True, ["x"]):
+            v = self._v(bad)
+            self.assertFalse(v["valid"], repr(bad)); self.assertIn("INVALID_EXPIRY", v["reason"])
+
+    def test_bytes_expiry_fails_closed_without_crash(self):
+        cap = dict(self._signed("2026-10-01T13:00:00+00:00"), expires=b"2026-10-01T13:00:00+00:00")
+        v = C.verify_chain([cap], now=self.NOW)
+        self.assertFalse(v["valid"]); self.assertEqual(v["reason"], "MALFORMED[0]")
+
+    def test_naive_and_date_only_are_invalid(self):
+        for bad in ("2026-10-01T13:00:00", "2026-10-01", "2099-01-01"):
+            self.assertIn("INVALID_EXPIRY", self._v(bad)["reason"], bad)
+
+    def test_offsets_compare_as_instants(self):
+        self.assertFalse(self._v("2026-10-01T16:30:00+05:00")["valid"])   # = 11:30Z, past
+        self.assertIn("EXPIRED", self._v("2026-10-01T16:30:00+05:00")["reason"])
+        self.assertTrue(self._v("2026-10-01T05:00:00-08:00")["valid"])    # = 13:00Z, future
+        self.assertTrue(self._v("2026-10-01T13:00:00Z")["valid"])
+        self.assertFalse(self._v("2026-10-01T11:00:00Z")["valid"])
+        self.assertTrue(self._v("2026-10-01 13:00:00+00:00")["valid"])
+
+    def test_boundary_is_expired(self):                   # existing semantic: exp <= now is expired
+        self.assertFalse(self._v("2026-10-01T12:00:00+00:00")["valid"])
+        self.assertFalse(self._v("2026-10-01T17:00:00+05:00")["valid"])
+        self.assertTrue(self._v("2026-10-01T12:00:01+00:00")["valid"])
+
+    def test_issue_refuses_to_sign_malformed_expiry(self):
+        for bad in ("zzzz", "9999", None, 5, "2026-10-01T13:00:00"):
+            with self.assertRaises(ValueError):
+                C.issue("company", "company", scope={}, expires=bad)
+
+    def test_delegate_compares_instants_not_strings(self):
+        root = C.issue("company", "company", scope={}, expires="2026-10-01T13:00:00+00:00",
+                       allow_delegate=True)
+        # 05:00-08:00 is the same instant as the parent; lexical compare mis-ordered it
+        same = C.issue("company", "company", scope={}, expires="2026-10-01T05:00:00-08:00",
+                       parent=root)
+        self.assertEqual(same["expires"], "2026-10-01T05:00:00-08:00")
+        with self.assertRaises(PermissionError):   # 13:30Z is later than parent
+            C.issue("company", "company", scope={}, expires="2026-10-01T13:30:00Z", parent=root)
+        with self.assertRaises(ValueError):
+            C.delegate(root, "company", "company", expires="zzzz")
+        d = C.delegate(root, "company", "company", expires="2026-10-01T16:00:00+05:00")
+        self.assertEqual(d["expires"], "2026-10-01T16:00:00+05:00")       # 11:00Z is earlier
+        d2 = C.delegate(root, "company", "company", expires="2026-10-01T23:00:00+05:00")
+        self.assertEqual(d2["expires"], root["expires"])                  # 18:00Z later -> capped
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
