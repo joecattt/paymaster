@@ -1,11 +1,13 @@
 """Proof the machinery is provider- and action-agnostic (use-case congregation).
 Not five products — one primitive, shown to reconcile a NON-LLM metered service
 and a non-spend agent ACTION through the exact same schema+reconcile+coverage."""
-import os, sys, unittest
+import os, sys, tempfile, unittest
+from datetime import datetime, timezone, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from paymaster.schema import record
 from paymaster.reconcile_external import reconcile, MATCH, MISMATCH
 from paymaster import coverage as C
+from paymaster import principal, capability as CAP
 
 class Generality(unittest.TestCase):
     def test_twilio_sms_reconciles(self):
@@ -13,8 +15,14 @@ class Generality(unittest.TestCase):
         r = record(ts="2026-08-23T10:00:00Z", rail="api-billing", provider="twilio",
                    principal="notify-agent", state="DELIVERED", attribution="asserted",
                    usd=0.0079, currency="USD", evidence="twilio:SMxxxx")
+        # PM-003: authorization is derived from a valid capability chain, not asserted
+        tmp = tempfile.mkdtemp()
+        principal.KEYDIR = os.path.join(tmp, "keys"); CAP.REVOKED_DB = os.path.join(tmp, "r.jsonl")
+        principal.enroll("company")
+        exp = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(timespec="seconds")
+        chain = [CAP.issue("company", "notify-agent", scope={"provider": "twilio"}, expires=exp)]
         v = reconcile(local_cost=0.0079, provider_cost=0.0079, settled_cost=0.0079,
-                      authorized=True, response_received=True)
+                      authorized=True, response_received=True, capability_chain=chain)
         self.assertEqual(v["verdict"], MATCH)
         self.assertEqual(r["provider"], "twilio")   # no LLM assumption anywhere
 

@@ -17,6 +17,12 @@ from paymaster import gate
 from paymaster.ledger import Ledger
 from paymaster.schema import record, make_id
 
+def _chain():
+    """PM-003: reconcile derives authorization from a capability chain. Supply one
+    (JSON list, root first) via PROVE_CAP_CHAIN; absent => UNAUTHORIZED_SPEND, by design."""
+    path = os.environ.get("PROVE_CAP_CHAIN")
+    return json.load(open(os.path.expanduser(path))) if path else None
+
 MODEL = os.environ.get("PROVE_MODEL", "openai/gpt-4o-mini")  # panel pick: reliable cost endpoint
 
 def _key():
@@ -97,7 +103,7 @@ def main():
             provider_cost = float(g["total_cost"])
             print(f"    +{wait}s: provider confirms total_cost=${provider_cost:.8f}")
             break
-        print(f"    +{wait}s: provider silent -> verdict {reconcile(None, None, authorized=True, response_received=True)['verdict']}")
+        print(f"    +{wait}s: provider silent -> verdict {reconcile(None, None, authorized=True, response_received=True, capability_chain=_chain())['verdict']}")
 
     if provider_cost is None:
         print("    provider never reported cost within poll window -> HARD FAIL (not a silent pass)")
@@ -111,12 +117,13 @@ def main():
     # tolerance: token-price rounding. within 20% or 1e-7 absolute = MATCH.
     tol = max(1e-7, 0.20 * provider_cost)
     r = reconcile(local_cost=local_est, provider_cost=provider_cost,
-                  settled_cost=provider_cost, authorized=True, response_received=True, tol=tol)
+                  settled_cost=provider_cost, authorized=True, response_received=True, tol=tol,
+                  capability_chain=_chain())
     print(f"    local_est ${local_est:.8f}  vs provider ${provider_cost:.8f}  "
           f"-> {r['verdict']}  spent_known={r['spent_known']}")
 
     print("[6] dropped-response case (same call, response lost)")
-    r2 = reconcile(None, None, authorized=True, response_received=False)
+    r2 = reconcile(None, None, authorized=True, response_received=False, capability_chain=_chain())
     print(f"    -> {r2['verdict']}  spent_known={r2['spent_known']}  ({r2['note'][:60]}…)")
 
     if r["verdict"] == MATCH:
