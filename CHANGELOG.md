@@ -2,7 +2,17 @@
 
 Versions below are grounded in actual git tags/commits — see `git log
 <tag>` for the full diff behind each one. `pyproject.toml` carries the
-current version (`0.5.0`), tagged `v0.5.0`.
+current version (`0.6.0`), tagged `v0.6.0`.
+
+## [0.6.0] — 2026-10-08
+
+Security patch. No new features.
+
+- **PM-001** `verify_chain` now requires a root-anchored, depth-contiguous capability chain. Previously a chain could verify without being anchored at the root.
+- **PM-002** Licence expiry is parsed to timezone-aware datetimes and compared as instants; malformed or naive expiries now fail closed instead of open.
+- **PM-003** Reconcile authorization is derived from the capability chain, not from a caller-supplied flag. **API change:** callers that passed the flag must present a capability instead (semver minor bump for this reason).
+
+Known: two date-dependent trial-warning tests fail on and after 2026-10-08 at both 0.5.0 and 0.6.0; they are test fixtures, not product behaviour, and are tracked separately.
 
 ## [0.5.0] — 2026-09-01
 

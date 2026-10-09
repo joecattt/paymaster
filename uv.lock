@@ -380,6 +380,9 @@ version = "0.5.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
+license = [
+    { name = "cryptography" },
+]
 mcp = [
     { name = "mcp" },
 ]
@@ -389,10 +392,11 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", marker = "extra == 'license'", specifier = ">=42" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.6,<2" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0" },
 ]
-provides-extras = ["mcp", "test"]
+provides-extras = ["mcp", "test", "license"]
 
 [[package]]
 name = "pluggy"
