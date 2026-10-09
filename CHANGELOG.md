@@ -12,7 +12,9 @@ Security patch. No new features.
 - **PM-002** Licence expiry is parsed to timezone-aware datetimes and compared as instants; malformed or naive expiries now fail closed instead of open.
 - **PM-003** Reconcile authorization is derived from the capability chain, not from a caller-supplied flag. **API change:** callers that passed the flag must present a capability instead (semver minor bump for this reason).
 
-Known: two date-dependent trial-warning tests fail on and after 2026-10-08 at both 0.5.0 and 0.6.0; they are test fixtures, not product behaviour, and are tracked separately.
+Correction (2026-10-08, same day): an earlier draft of this entry said two trial-warning tests were date-dependent. That was wrong. All 126 tests pass on CI and in a clean install. The two tests fail only in an environment missing the Ed25519 crypto dependency, which disables the trial warning by design.
+
+Known defect, not fixed in this release: on a fresh clone, `verify` exits 2 with "TAMPERED: anchor seq=… missing" because the tracked `anchors.jsonl` belongs to the author's ledger. Tracked as a launch blocker.
 
 ## [0.5.0] — 2026-09-01
 
